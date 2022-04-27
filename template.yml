@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: AWS-DYNAMODB-TTL
+
+Globals:
+  Function:
+    Runtime: java11
+    MemorySize: 3072
+    Timeout: 25
+
+Resources:
+  ########### LAMBDA ###########
+  DataProducer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DataProducer
+      Handler: com.ibercode.DataProducer::handleRequest
+      CodeUri: target/sourceCode.zip
+      Environment:
+        Variables:
+          SENSORS_TABLE: !Ref SensorsDDBTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SensorsDDBTable
+
+  DataProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: DataProcessor
+      Handler: com.ibercode.DataProcessor::handleRequest
+      CodeUri: target/sourceCode.zip
+      Environment:
+        Variables:
+          FIREHOSE_NAME: !Ref DeliveryStream
+      Events:
+        OrdersDDBTable:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt SensorsDDBTable.StreamArn
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 100
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - "cloudwatch:*"
+                - "logs:*"
+                - "firehose:PutRecord"
+              Resource:
+                - !GetAtt DeliveryStream.Arn
+
+  ########### S3 BUCKET ###########
+  DeliveryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: deliverybucket-hb8ud9812dsaasd
+
+  ########## KINESIS DATA FIREHOSE ###########
+  DeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    DependsOn:
+      - DeliveryStreamPolicy
+    Properties:
+      DeliveryStreamName: "kdf-firehose-78872duisouawsd8"
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt DeliveryBucket.Arn
+        BufferingHints:
+          SizeInMBs: 1
+          IntervalInSeconds: 60
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: "/aws/kinesisfirehose/ibcd"
+          LogStreamName: "S3Delivery"
+        CompressionFormat: "GZIP"
+        EncryptionConfiguration:
+          NoEncryptionConfig: "NoEncryption"
+        Prefix: ""
+        RoleARN: !GetAtt DeliveryStreamRole.Arn
+
+  ########## DynamoDb Table ##########
+  SensorsDDBTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: SensorsDDBTable
+      AttributeDefinitions:
+        - AttributeName: sensorId
+          AttributeType: S
+        - AttributeName: dataTTL
+          AttributeType: N
+      KeySchema:
+        - AttributeName: sensorId
+          KeyType: HASH
+        - AttributeName: dataTTL
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TimeToLiveSpecification:
+        AttributeName: dataTTL
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: OLD_IMAGE
+
+  ########## Policies ###########
+  DeliveryStreamPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+        - !Ref DeliveryStreamRole
+      PolicyName: firehose_delivery_policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:AbortMultipartUpload'
+              - 's3:GetBucketLocation'
+              - 's3:GetObject'
+              - 's3:ListBucket'
+              - 's3:ListBucketMultipartUploads'
+              - 's3:PutObject'
+            Resource:
+              - !GetAtt DeliveryBucket.Arn
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref DeliveryBucket
+                  - '*'
+
+  DeliveryStreamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref 'AWS::AccountId'
