@@ -5,7 +5,7 @@ This pattern provides steps to remove older data from an Amazon DynamoDB table a
 
 This pattern uses Amazon DynamoDB Time to Live (TTL) to automatically delete old items and Amazon DynamoDB Streams to capture the TTL-expired items. It then connects DynamoDB Streams to AWS Lambda, which runs the code without provisioning or managing any servers.
 
-<img src="topology.png" alt="topology" width="65%"/>
+<img src="topology.png" alt="topology" width="1224"/>
 
 The SAM template deploys two Lambda function, a DynamoDB table, a Kinesis Data Streams and an S3 bucket. 
 
@@ -50,10 +50,14 @@ Kinesis Data Firehose will store the data as an object into an S3 bucket.
 ```
 aws lambda invoke --function-name DataProducer response
 
+aws dynamodb scan --table-name SensorsDDBTable
+
 ```
 
 Wait an hour or two and run the following command to see the record in S3
 ```
+aws dynamodb scan --table-name SensorsDDBTable
+
 aws s3 ls s3://deliverybucket-hb8ud9812dsaasd --recursive --human-readable --summarize
 
 aws s3 cp s3://deliverybucket-hb8ud9812dsaasd/OBJECT_NAME.gz download.gz
