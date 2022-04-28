@@ -1,5 +1,5 @@
-# Automatically archive items to Amazon S3 using DynamoDB TTL
-#### AWS Lambda to Dynamodb to Kinesis Data Firehose to S3 
+# Automatically archive DynamoDB items to Amazon S3 using DynamoDB TTL
+#### AWS Lambda to DynamoDB to Kinesis Data Firehose to S3 
 
 This pattern provides steps to remove older data from an Amazon DynamoDB table and archive it to an Amazon Simple Storage Service (Amazon S3) bucket on Amazon Web Services (AWS) without having to manage a fleet of servers.
 
